@@ -1,0 +1,19 @@
+# HF Spaces requirements (CPU-only, Python 3.13 compatible)
+# Uses standard PyPI packages — no +cpu suffix needed
+
+# Core ML
+torch>=2.5.0
+sentence-transformers>=2.7.0
+faiss-cpu>=1.8.0
+rank-bm25>=0.2.2
+transformers>=4.40.0
+
+# Storage
+numpy>=1.26.0
+python-dotenv>=1.0.0
+
+# UI
+streamlit==1.35.0
+
+# HTTP
+requests>=2.31.0

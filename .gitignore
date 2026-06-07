@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+.venv/
+venv/
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ── Large data files (NOT committed to GitHub) ────────────────────────────────
+data/raw/
+data/processed/
+data/embeddings/
+data/indexes/*.json
+data/indexes/*.npy
+
+# Ignore large indexes (full strategies — 200MB+ each)
+data/indexes/faiss_c*.index
+data/indexes/bm25_c*.pkl
+data/indexes/metadata_c*.json
+
+# KEEP demo indexes (small, needed for quick_demo.py)
+!data/indexes/faiss_demo.index
+!data/indexes/bm25_demo.pkl
+!data/indexes/metadata_demo.json
+
+# Large files
+*.npy
+
+# Outputs
+output/
+outputs/
+
+# Logs
+logs/
+
+# Temp
+temp_*
+
+# IDE
+.vscode/
+.idea/
+
+# Kaggle notebooks output
+*.csv.gz
