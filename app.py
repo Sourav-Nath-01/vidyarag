@@ -46,15 +46,24 @@ for _candidate in [_here, _here / "src" / "retrieval", _here / "src"]:
         sys.path.insert(0, str(_candidate))
         break
 
-# ── load .env ─────────────────────────────────────────────────────────────────
+# ── HF Spaces safe defaults (set BEFORE .env and retriever import) ────────────
+# Demo index was built with all-MiniLM-L6-v2 (384-dim).
+# BGE-large (1024-dim) would cause FAISS AssertionError on dimension mismatch.
+os.environ.setdefault("EMBEDDING_MODEL",  "all-MiniLM-L6-v2")
+os.environ.setdefault("EMBEDDING_DEVICE", "cpu")
+os.environ.setdefault("DEFAULT_STRATEGY", "demo")
+os.environ.setdefault("PROJECT_ROOT",     str(_here))
+
+# ── load .env (local dev overrides above defaults) ────────────────────────────
 try:
     from dotenv import load_dotenv
     for _c in [_here, _here.parent]:
         if (_c / ".env").exists():
-            load_dotenv(_c / ".env")
+            load_dotenv(_c / ".env", override=False)  # override=False keeps defaults above
             break
 except ImportError:
     pass
+
 
 # ── page config — must be first Streamlit call ────────────────────────────────
 st.set_page_config(
