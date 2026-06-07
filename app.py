@@ -416,12 +416,33 @@ def render_sidebar() -> dict:
     with st.sidebar:
         st.markdown("### ⚙️ Search settings")
 
-        strategy = st.selectbox(
-            "Chunking strategy",
-            options=list(STRATEGY_LABELS.keys()),
-            format_func=lambda x: STRATEGY_LABELS[x],
-            index=0,  # Default to demo so it works immediately
-        )
+        # On HF Spaces only demo index is available (full indexes are 400MB+)
+        _on_hf = bool(os.environ.get("SPACE_ID"))
+        if _on_hf:
+            _hf_labels = {
+                "demo": "Demo — 300 segments (MiniLM, instant) ✅",
+                "c1": "C1 — Fixed 30s window (not available on HF Space)",
+                "c2": "C2 — Utterance window (not available on HF Space)",
+                "c3": "C3 — Slide boundary / OCR Jaccard (not available on HF Space)",
+            }
+            strategy = st.selectbox(
+                "Chunking strategy",
+                options=["demo"],
+                format_func=lambda x: _hf_labels[x],
+                index=0,
+            )
+            st.info(
+                "ℹ️ **HF Spaces demo** — only the lightweight demo index is available here.  \n"
+                "Clone the repo and run locally with the full BGE-large C3 index for MRR 0.826 results.",
+                icon="🚀",
+            )
+        else:
+            strategy = st.selectbox(
+                "Chunking strategy",
+                options=list(STRATEGY_LABELS.keys()),
+                format_func=lambda x: STRATEGY_LABELS[x],
+                index=0,  # Default to demo so it works immediately
+            )
         st.caption(STRATEGY_DESCRIPTIONS[strategy])
 
         st.divider()
