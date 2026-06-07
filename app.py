@@ -69,8 +69,8 @@ except ImportError:
 def _bootstrap_indexes():
     """
     On HF Spaces, download the full strategy indexes from the dataset repo.
-    Runs once at startup (cached). Falls back silently if download fails.
-    Indexes are stored in /app/data/indexes/ on the Space filesystem.
+    Uses snapshot_download (atomic, retries, reliable) instead of per-file download.
+    Indexes stored in /app/data/indexes/ on the Space filesystem.
     """
     if not os.environ.get("SPACE_ID"):
         return  # Not on HF Spaces — skip
@@ -78,33 +78,38 @@ def _bootstrap_indexes():
     index_dir = _here / "data" / "indexes"
     index_dir.mkdir(parents=True, exist_ok=True)
 
-    # Files to download from SouravNath/vidyarag-indexes dataset
-    DATASET_FILES = [
+    REQUIRED = [
         "faiss_c1.index", "faiss_c2.index", "faiss_c3.index",
         "bm25_c1.pkl",    "bm25_c2.pkl",    "bm25_c3.pkl",
         "metadata_c1.json", "metadata_c2.json", "metadata_c3.json",
     ]
 
-    try:
-        from huggingface_hub import hf_hub_download
-        for fname in DATASET_FILES:
-            dest = index_dir / fname
-            if dest.exists():
-                continue  # Already downloaded
-            hf_hub_download(
-                repo_id="SouravNath/vidyarag-indexes",
-                filename=fname,
-                repo_type="dataset",
-                local_dir=str(index_dir),
-            )
-    except Exception:
-        pass  # Demo index still works if full indexes fail
+    # Check if already fully downloaded
+    missing = [f for f in REQUIRED if not (index_dir / f).exists()]
+    if not missing:
+        return  # All present, nothing to do
 
-# Set correct embedding model for full indexes on HF Spaces
+    try:
+        from huggingface_hub import snapshot_download
+        # Download entire dataset repo into index_dir
+        # snapshot_download handles retries, LFS, and atomic writes
+        snapshot_download(
+            repo_id="SouravNath/vidyarag-indexes",
+            repo_type="dataset",
+            local_dir=str(index_dir),
+            ignore_patterns=["*.gitattributes", ".gitattributes"],
+        )
+    except Exception as e:
+        # Log visibly so we can debug — demo index still works
+        import streamlit as _st
+        _st.warning(f"⚠️ Index download failed: {e}. Using demo index.")
+
+# Set correct embedding model when ALL full indexes are present on HF Spaces
 if os.environ.get("SPACE_ID"):
-    _full_idx = _here / "data" / "indexes" / "faiss_c3.index"
-    if _full_idx.exists():
-        # Full BGE-large indexes available — use the right model
+    _idx_dir  = _here / "data" / "indexes"
+    _required = ["faiss_c3.index", "bm25_c3.pkl", "metadata_c3.json"]
+    if all((_idx_dir / f).exists() for f in _required):
+        # All C3 files present — use BGE-large
         os.environ["EMBEDDING_MODEL"] = "BAAI/bge-large-en-v1.5"
         os.environ["EMBEDDING_DEVICE"] = "cpu"
 
