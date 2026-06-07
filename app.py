@@ -65,6 +65,50 @@ except ImportError:
     pass
 
 
+# ── HF Spaces: download full BGE-large indexes from dataset repo ──────────────
+def _bootstrap_indexes():
+    """
+    On HF Spaces, download the full strategy indexes from the dataset repo.
+    Runs once at startup (cached). Falls back silently if download fails.
+    Indexes are stored in /app/data/indexes/ on the Space filesystem.
+    """
+    if not os.environ.get("SPACE_ID"):
+        return  # Not on HF Spaces — skip
+
+    index_dir = _here / "data" / "indexes"
+    index_dir.mkdir(parents=True, exist_ok=True)
+
+    # Files to download from SouravNath/vidyarag-indexes dataset
+    DATASET_FILES = [
+        "faiss_c1.index", "faiss_c2.index", "faiss_c3.index",
+        "bm25_c1.pkl",    "bm25_c2.pkl",    "bm25_c3.pkl",
+        "metadata_c1.json", "metadata_c2.json", "metadata_c3.json",
+    ]
+
+    try:
+        from huggingface_hub import hf_hub_download
+        for fname in DATASET_FILES:
+            dest = index_dir / fname
+            if dest.exists():
+                continue  # Already downloaded
+            hf_hub_download(
+                repo_id="SouravNath/vidyarag-indexes",
+                filename=fname,
+                repo_type="dataset",
+                local_dir=str(index_dir),
+            )
+    except Exception:
+        pass  # Demo index still works if full indexes fail
+
+# Set correct embedding model for full indexes on HF Spaces
+if os.environ.get("SPACE_ID"):
+    _full_idx = _here / "data" / "indexes" / "faiss_c3.index"
+    if _full_idx.exists():
+        # Full BGE-large indexes available — use the right model
+        os.environ["EMBEDDING_MODEL"] = "BAAI/bge-large-en-v1.5"
+        os.environ["EMBEDDING_DEVICE"] = "cpu"
+
+
 # ── page config — must be first Streamlit call ────────────────────────────────
 st.set_page_config(
     page_title="VidyaRAG — NPTEL Lecture Retrieval",
@@ -416,32 +460,39 @@ def render_sidebar() -> dict:
     with st.sidebar:
         st.markdown("### ⚙️ Search settings")
 
-        # On HF Spaces only demo index is available (full indexes are 400MB+)
-        _on_hf = bool(os.environ.get("SPACE_ID"))
-        if _on_hf:
-            _hf_labels = {
-                "demo": "Demo — 300 segments (MiniLM, instant) ✅",
-                "c1": "C1 — Fixed 30s window (not available on HF Space)",
-                "c2": "C2 — Utterance window (not available on HF Space)",
-                "c3": "C3 — Slide boundary / OCR Jaccard (not available on HF Space)",
-            }
+        # On HF Spaces: show all strategies if full indexes downloaded, else demo only
+        _on_hf       = bool(os.environ.get("SPACE_ID"))
+        _has_full    = (_here / "data" / "indexes" / "faiss_c3.index").exists()
+
+        if _on_hf and not _has_full:
+            # Still downloading — lock to demo
             strategy = st.selectbox(
                 "Chunking strategy",
                 options=["demo"],
-                format_func=lambda x: _hf_labels[x],
+                format_func=lambda x: "Demo — 300 segments (MiniLM, instant) ✅",
                 index=0,
             )
             st.info(
-                "ℹ️ **HF Spaces demo** — only the lightweight demo index is available here.  \n"
-                "Clone the repo and run locally with the full BGE-large C3 index for MRR 0.826 results.",
+                "⏳ Full indexes loading on first boot (~60s).  \n"
+                "Refresh after ~1 minute to unlock C1 / C2 / C3.",
                 icon="🚀",
             )
-        else:
+        elif _on_hf and _has_full:
+            # Full indexes available — unlock all strategies, default to C3
             strategy = st.selectbox(
                 "Chunking strategy",
                 options=list(STRATEGY_LABELS.keys()),
                 format_func=lambda x: STRATEGY_LABELS[x],
-                index=0,  # Default to demo so it works immediately
+                index=list(STRATEGY_LABELS.keys()).index("c3"),  # Default to best
+            )
+            st.success("✅ Full BGE-large indexes loaded — MRR 0.826 quality")
+        else:
+            # Local dev — show all strategies
+            strategy = st.selectbox(
+                "Chunking strategy",
+                options=list(STRATEGY_LABELS.keys()),
+                format_func=lambda x: STRATEGY_LABELS[x],
+                index=0,
             )
         st.caption(STRATEGY_DESCRIPTIONS[strategy])
 
@@ -525,6 +576,22 @@ def add_to_history(query: str, n_results: int, latency: float, strategy: str):
 
 def main():
     init_history()
+
+    # ── Bootstrap full indexes on HF Spaces (runs once, cached) ───────────────
+    if os.environ.get("SPACE_ID"):
+        _full_idx = _here / "data" / "indexes" / "faiss_c3.index"
+        if not _full_idx.exists():
+            with st.spinner("⏳ First load: downloading full BGE-large indexes (~500MB)... ~60s"):
+                _bootstrap_indexes()
+            # After download, upgrade model to BGE-large
+            if (_here / "data" / "indexes" / "faiss_c3.index").exists():
+                import importlib, sys
+                os.environ["EMBEDDING_MODEL"] = "BAAI/bge-large-en-v1.5"
+                # Force retriever reload with new model
+                for mod in [k for k in sys.modules if "retriever" in k]:
+                    del sys.modules[mod]
+            st.rerun()
+
     ret    = load_retriever()
     config = render_sidebar()
 
