@@ -26,6 +26,7 @@ data/indexes/*.npy
 data/indexes/faiss_c*.index
 data/indexes/bm25_c*.pkl
 data/indexes/metadata_c*.json
+data/indexes/nptel_indexes.zip   # 491MB — too large for GitHub
 
 # KEEP demo indexes (small, needed for quick_demo.py)
 !data/indexes/faiss_demo.index
