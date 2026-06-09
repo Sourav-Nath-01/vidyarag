@@ -69,8 +69,14 @@ except ImportError:
 def _bootstrap_indexes():
     """
     On HF Spaces, download the full strategy indexes from the dataset repo.
-    Uses snapshot_download (atomic, retries, reliable) instead of per-file download.
-    Indexes stored in /app/data/indexes/ on the Space filesystem.
+
+    Strategy:
+      1. Try snapshot_download first — atomic, handles retries and LFS.
+      2. If any required files are still missing after snapshot_download
+         (partial failure, corrupt write, network blip), fall back to
+         per-file hf_hub_download so we recover without a full re-download.
+
+    Indexes are stored in /app/data/indexes/ on the Space filesystem.
     """
     if not os.environ.get("SPACE_ID"):
         return  # Not on HF Spaces — skip
@@ -84,25 +90,53 @@ def _bootstrap_indexes():
         "metadata_c1.json", "metadata_c2.json", "metadata_c3.json",
     ]
 
-    # Check if already fully downloaded
+    # Fast-path: nothing to do if all files already present
     missing = [f for f in REQUIRED if not (index_dir / f).exists()]
     if not missing:
-        return  # All present, nothing to do
+        return
 
     try:
-        from huggingface_hub import snapshot_download
-        # Download entire dataset repo into index_dir
-        # snapshot_download handles retries, LFS, and atomic writes
-        snapshot_download(
-            repo_id="SouravNath/vidyarag-indexes",
-            repo_type="dataset",
-            local_dir=str(index_dir),
-            ignore_patterns=["*.gitattributes", ".gitattributes"],
-        )
+        from huggingface_hub import snapshot_download, hf_hub_download
+        import shutil
+
+        # ── Step 1: snapshot download (bulk, efficient) ───────────────────────
+        try:
+            snapshot_download(
+                repo_id="SouravNath/vidyarag-indexes",
+                repo_type="dataset",
+                local_dir=str(index_dir),
+                ignore_patterns=["*.gitattributes", ".gitattributes"],
+            )
+        except Exception as snap_err:
+            import streamlit as _st
+            _st.warning(
+                f"⚠️ Bulk download incomplete ({snap_err}). "
+                "Attempting per-file fallback…"
+            )
+
+        # ── Step 2: per-file fallback for anything still missing ──────────────
+        # This repairs partial failures without re-downloading the whole repo.
+        still_missing = [f for f in REQUIRED if not (index_dir / f).exists()]
+        for fname in still_missing:
+            try:
+                tmp = hf_hub_download(
+                    repo_id="SouravNath/vidyarag-indexes",
+                    repo_type="dataset",
+                    filename=fname,
+                )
+                shutil.copy2(tmp, index_dir / fname)
+            except Exception as file_err:
+                import streamlit as _st
+                _st.warning(f"⚠️ Could not download {fname}: {file_err}")
+
     except Exception as e:
-        # Log visibly so we can debug — demo index still works
         import streamlit as _st
-        _st.warning(f"⚠️ Index download failed: {e}. Using demo index.")
+        _st.error(
+            f"❌ Index download failed: {e}\n\n"
+            "Falling back to **Demo** index (300 segments, MiniLM). "
+            "Full C1/C2/C3 strategies are unavailable."
+        )
+
 
 # Set correct embedding model when ALL full indexes are present on HF Spaces
 if os.environ.get("SPACE_ID"):
@@ -507,15 +541,31 @@ def render_sidebar() -> dict:
 
         use_rerank = st.toggle("Cross-encoder re-ranking", value=True)
 
-        use_llm = st.toggle("LLM query analysis (Ollama)", value=False)
+        _on_hf_llm = bool(os.environ.get("SPACE_ID"))
+        use_llm = st.toggle(
+            "LLM query analysis (Ollama)",
+            value=False,
+            disabled=_on_hf_llm,
+            help="Requires a local Ollama server — not available on HF Spaces."
+            if _on_hf_llm else None,
+        )
 
-        if use_llm:
+        if _on_hf_llm:
+            # Show a clear, persistent notice — never silently fail
+            st.info(
+                "🤖 **LLM features disabled on HF Spaces.**\n\n"
+                "Ollama requires a local GPU/CPU server. "
+                "Clone the repo and run `ollama serve` locally to enable "
+                "query expansion + intent classification.",
+                icon="ℹ️",
+            )
+        elif use_llm:
             ollama_model = st.text_input(
                 "Ollama model",
                 value=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
             )
             os.environ["OLLAMA_MODEL"] = ollama_model
-            st.caption("Run: ollama serve")
+            st.caption("Run: `ollama serve` in a terminal, then search.")
 
         st.divider()
         st.markdown("### 📚 Course filter")

@@ -371,8 +371,77 @@
   },
   {
     "label": "C3 (t=0.30)",
-    "file": "segments_c3_t030.jsonl",
-    "status": "missing"
+    "file": "segments_c3.jsonl",
+    "n_segments": 16200,
+    "avg_dur_sec": 51.2,
+    "avg_words": 123.4,
+    "ocr_fail_pct": 1.7,
+    "code_pct": 3.2,
+    "by_course": {
+      "cn": {
+        "n": 1725,
+        "ocr_fail_pct": 0.6,
+        "code_pct": 6.3,
+        "avg_dur": 69.6,
+        "avg_words": 174.3
+      },
+      "coa": {
+        "n": 1896,
+        "ocr_fail_pct": 0.6,
+        "code_pct": 0.8,
+        "avg_dur": 63.6,
+        "avg_words": 137.3
+      },
+      "cv": {
+        "n": 3599,
+        "ocr_fail_pct": 0.6,
+        "code_pct": 0.9,
+        "avg_dur": 31.2,
+        "avg_words": 105.2
+      },
+      "daa": {
+        "n": 848,
+        "ocr_fail_pct": 14.2,
+        "code_pct": 2.2,
+        "avg_dur": 59.7,
+        "avg_words": 188.9
+      },
+      "dbms": {
+        "n": 1104,
+        "ocr_fail_pct": 0.0,
+        "code_pct": 3.5,
+        "avg_dur": 94.8,
+        "avg_words": 196.2
+      },
+      "dl": {
+        "n": 1303,
+        "ocr_fail_pct": 0.2,
+        "code_pct": 3.5,
+        "avg_dur": 57.7,
+        "avg_words": 174.5
+      },
+      "dsa": {
+        "n": 3137,
+        "ocr_fail_pct": 3.0,
+        "code_pct": 1.2,
+        "avg_dur": 39.3,
+        "avg_words": 61.3
+      },
+      "ml": {
+        "n": 1887,
+        "ocr_fail_pct": 0.5,
+        "code_pct": 2.4,
+        "avg_dur": 37.0,
+        "avg_words": 76.9
+      },
+      "os": {
+        "n": 701,
+        "ocr_fail_pct": 0.4,
+        "code_pct": 24.0,
+        "avg_dur": 76.3,
+        "avg_words": 167.7
+      }
+    }
   },
   {
     "label": "C3 (t=0.40)",
