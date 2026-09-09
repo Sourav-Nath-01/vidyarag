@@ -67,6 +67,57 @@ except ImportError as e:
         "Run: pip install fastapi uvicorn"
     )
 
+# ── HF Spaces: download full BGE-large indexes from dataset repo ───────────────
+# Runs once at process start, before `retriever` is imported, so EMBEDDING_MODEL
+# is read correctly on that first import (mirrors app.py's bootstrap, but without
+# the Streamlit-rerun dance since this only needs to happen before uvicorn binds).
+if os.environ.get("SPACE_ID"):
+    _idx_dir = _root / "data" / "indexes"
+    _idx_dir.mkdir(parents=True, exist_ok=True)
+
+    _REQUIRED = [
+        "faiss_c1.index", "faiss_c2.index", "faiss_c3.index",
+        "bm25_c1.pkl",    "bm25_c2.pkl",    "bm25_c3.pkl",
+        "metadata_c1.json", "metadata_c2.json", "metadata_c3.json",
+    ]
+    _missing = [f for f in _REQUIRED if not (_idx_dir / f).exists()]
+
+    if _missing:
+        print(f"[bootstrap] Downloading {len(_missing)} missing index files from HF dataset...")
+        try:
+            from huggingface_hub import snapshot_download, hf_hub_download
+            import shutil
+
+            try:
+                snapshot_download(
+                    repo_id="SouravNath/vidyarag-indexes",
+                    repo_type="dataset",
+                    local_dir=str(_idx_dir),
+                    ignore_patterns=["*.gitattributes", ".gitattributes"],
+                )
+            except Exception as snap_err:
+                print(f"[bootstrap] Bulk download incomplete ({snap_err}). Trying per-file fallback...")
+
+            still_missing = [f for f in _REQUIRED if not (_idx_dir / f).exists()]
+            for fname in still_missing:
+                try:
+                    tmp = hf_hub_download(
+                        repo_id="SouravNath/vidyarag-indexes",
+                        repo_type="dataset",
+                        filename=fname,
+                    )
+                    shutil.copy2(tmp, _idx_dir / fname)
+                except Exception as file_err:
+                    print(f"[bootstrap] Could not download {fname}: {file_err}")
+        except Exception as e:
+            print(f"[bootstrap] Index download failed: {e}")
+
+    if all((_idx_dir / f).exists() for f in ["faiss_c3.index", "bm25_c3.pkl", "metadata_c3.json"]):
+        os.environ["EMBEDDING_MODEL"] = "BAAI/bge-large-en-v1.5"
+        print("[bootstrap] Full indexes ready — using BGE-large-en-v1.5.")
+    else:
+        print("[bootstrap] WARNING: full indexes unavailable — c1/c2/c3 strategies will 503.")
+
 import retriever as _ret
 
 # ─────────────────────────────────────────────────────────────────────────────

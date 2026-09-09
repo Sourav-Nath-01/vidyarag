@@ -77,4 +77,4 @@ The course set is designed for:
 
 # Repository
 
-https://github.com/Shubhamsavani/nptel-lecture-retrieval
+https://github.com/Sourav-Nath-01/vidyarag

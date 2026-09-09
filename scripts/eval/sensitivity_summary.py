@@ -1,12 +1,16 @@
 import json
 import os
 import csv
+from pathlib import Path
+
+# Resolved against the repo so these run from any working directory
+EVAL_DIR = Path(__file__).resolve().parents[2] / "data" / "eval"
 
 # ===================== CONFIG =====================
 FILE_PREFIX = "sensitivity_"
 FILE_SUFFIX = ".json"
 
-OUTPUT_CSV = "sensitivity_summary.csv"
+OUTPUT_CSV = EVAL_DIR / "sensitivity_summary.csv"
 
 FIELDS = [
     "Strategy",
@@ -23,13 +27,13 @@ FIELDS = [
 def process_files():
     data = []
 
-    for filename in os.listdir():
+    for filename in os.listdir(EVAL_DIR):
         # Match files like: sensitivity_C*.json
         if not (filename.startswith(FILE_PREFIX + "C") and filename.endswith(FILE_SUFFIX)):
             continue
 
         try:
-            with open(filename, "r", encoding="utf-8") as f:
+            with open(EVAL_DIR / filename, "r", encoding="utf-8") as f:
                 content = json.load(f)
 
             # Remove prefix + suffix → keep full strategy

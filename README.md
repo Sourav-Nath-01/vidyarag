@@ -4,7 +4,10 @@
 
 [![GitHub](https://img.shields.io/badge/GitHub-Sourav--Nath--01%2Fvidyarag-181717?logo=github)](https://github.com/Sourav-Nath-01/vidyarag)
 [![HF Space](https://img.shields.io/badge/%F0%9F%A4%97%20HF%20Space-SouravNath%2Fvidyarag-ffd21e)](https://huggingface.co/spaces/SouravNath/vidyarag)
+[![Tests](https://github.com/Sourav-Nath-01/vidyarag/actions/workflows/tests.yml/badge.svg)](https://github.com/Sourav-Nath-01/vidyarag/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+**[🚀 Try the live demo](https://huggingface.co/spaces/SouravNath/vidyarag)** · **[📄 Read the full report](report/vidyarag_report.pdf)**
 
 An AI-powered semantic search system over NPTEL lecture transcripts and OCR slide content. Achieves **MRR 0.826 / Recall@10 0.964** across 9 CS courses and 24,000+ indexed segments.
 
@@ -69,16 +72,15 @@ Evaluated on **84 human-annotated queries** across 9 NPTEL courses (DSA, DAA, De
 ## Project Structure
 
 ```bash
-nptel-lecture-retrieval/
+vidyarag/
 │
-├── data/                       # Dataset and processed retrieval chunks
-│   ├── raw/                    # Raw Whisper transcripts + OCR output
-│   ├── processed/              # Chunked segments (segments_c1/c2/c3.jsonl)
-│   ├── indexes/                # FAISS + BM25 index files
-│   └── eval/                   # Evaluation queries and metrics
+├── app.py                      # Streamlit UI — main entry point
+├── requirements.txt            # Full dev / pipeline dependency set
+├── env.example                 # Copy to .env and edit
+├── pytest.ini
 │
 ├── src/
-│   ├── data_collection/        # ASR transcription, OCR, metadata builder
+│   ├── data_collection/        # ASR transcription, OCR, chunking
 │   │   ├── 1_metadata_builder.py
 │   │   ├── 2_chunker_c1.py     # Fixed 30s window chunking
 │   │   ├── 2_chunker_c2.py     # Utterance / word-count chunking
@@ -90,21 +92,50 @@ nptel-lecture-retrieval/
 │       ├── retriever.py        # Full retrieval pipeline
 │       └── evaluator.py        # Ablation study + metrics
 │
-├── api/                        # FastAPI REST server
-│   └── app.py
+├── api/
+│   └── app.py                  # FastAPI REST server
 │
-├── tests/                      # Unit test suite (pytest)
-│   └── test_core.py
+├── scripts/                    # Developer tooling & offline pipeline
+│   ├── build_indexes.py        # Build FAISS + BM25 indexes
+│   ├── quick_demo.py           # CPU end-to-end demo (no GPU)
+│   ├── eval_app.py             # Annotation / evaluation Streamlit UI
+│   ├── generate_charts.py      # README result charts
+│   ├── kaggle_build_indexes.ipynb
+│   ├── kaggle_upload_to_hf.py  # Push built indexes to an HF Dataset
+│   └── eval/                   # Metric summarisation helpers
+│       ├── eval_summary.py
+│       ├── sensitivity_summary.py
+│       └── add_types.py
 │
-├── configs/
-│   ├── courses.json
-│   └── Readme.md
+├── deploy/                     # Hugging Face Space deployment
+│   ├── streamlit_space.py      # Deploy the Streamlit demo Space
+│   ├── api_space.py            # Deploy the Docker FastAPI Space
+│   ├── zerogpu_space.py        # Deploy the Gradio ZeroGPU Space
+│   ├── app_zerogpu.py          # Gradio entry point for ZeroGPU
+│   ├── Dockerfile              # Image for the FastAPI Space
+│   ├── requirements/           # Per-target runtime deps
+│   │   ├── streamlit-space.txt
+│   │   ├── api.txt
+│   │   └── zerogpu.txt
+│   └── space_cards/            # HF Space README front-matter cards
+│       ├── streamlit.md
+│       ├── api.md
+│       └── zerogpu.md
 │
-├── img/                        # Architecture diagrams
-├── app.py                      # Streamlit UI (main entry point)
-├── eval_app.py                 # Annotation / evaluation Streamlit UI
-├── requirements.txt
-└── env.example
+├── data/
+│   ├── raw/                    # Whisper transcripts + OCR output
+│   ├── processed/              # Chunked segments (segments_c1/c2/c3.jsonl)
+│   ├── indexes/                # FAISS + BM25 index files
+│   └── eval/                   # Annotations, experiment results, metrics
+│
+├── report/
+│   ├── vidyarag_report.tex     # Full technical report (LaTeX)
+│   ├── vidyarag_report.pdf     # Compiled report
+│   └── figures/                # Report figures (PDF + PNG)
+│
+├── configs/courses.json        # Course list / OCR flags
+├── img/                        # README diagrams and charts
+└── tests/test_core.py          # Unit test suite (pytest)
 ```
 
 ---
@@ -177,17 +208,18 @@ python src/retrieval/retriever.py --query "backpropagation" --llm --verbose
 Runs the **full pipeline** (dense + BM25 + RRF + reranker) on 300 real segments using the lightweight `all-MiniLM-L6-v2` model. Completes in ~2 minutes on any CPU.
 
 ```bash
-python quick_demo.py
+python scripts/quick_demo.py
 ```
 
 Demo indexes are pre-built in `data/indexes/` — no rebuild needed.
+To build the full indexes yourself: `python scripts/build_indexes.py --strategy c3`.
 
 ### Annotation / Evaluation UI
 
 Interactive Streamlit tool used to create and validate the 84-query human-annotated evaluation set with timestamp grounding.
 
 ```bash
-streamlit run eval_app.py
+streamlit run scripts/eval_app.py
 ```
 
 ---
@@ -305,6 +337,33 @@ pytest tests/ -v
 - Slide image embeddings (CLIP-based)
 - Voice-based query support
 - Adaptive chunk merging
+
+---
+
+## Deployment
+
+Three Hugging Face Space targets, each self-contained under `deploy/`:
+
+| Target | Script | SDK | Serves |
+|---|---|---|---|
+| Streamlit demo | `deploy/streamlit_space.py` | Streamlit | Always-on CPU demo (demo index) |
+| REST API | `deploy/api_space.py` | Docker | FastAPI `/search`, full BGE-large index |
+| ZeroGPU API | `deploy/zerogpu_space.py` | Gradio | On-demand A10G GPU inference |
+
+```bash
+export HF_TOKEN=hf_...            # write-access token
+python deploy/streamlit_space.py --username YOUR_HF_USERNAME
+```
+
+Each target pairs a runtime dependency file in `deploy/requirements/` with an HF
+Space card in `deploy/space_cards/` (uploaded as the Space's own `README.md`).
+
+Build the API image locally:
+
+```bash
+docker build -f deploy/Dockerfile -t nptel-retrieval-api .
+docker run -p 8000:7860 nptel-retrieval-api
+```
 
 ---
 

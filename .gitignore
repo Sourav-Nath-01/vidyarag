@@ -3,6 +3,10 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
 
 # Virtual env
 .venv/
@@ -26,7 +30,9 @@ data/indexes/*.npy
 data/indexes/faiss_c*.index
 data/indexes/bm25_c*.pkl
 data/indexes/metadata_c*.json
-data/indexes/nptel_indexes.zip   # 491MB — too large for GitHub
+
+# 491MB — too large for GitHub
+data/indexes/nptel_indexes.zip
 
 # KEEP demo indexes (small, needed for quick_demo.py)
 !data/indexes/faiss_demo.index
@@ -49,6 +55,13 @@ temp_*
 # IDE
 .vscode/
 .idea/
+
+# LaTeX build artefacts (report/vidyarag_report.pdf is committed intentionally)
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.synctex.gz
 
 # Kaggle notebooks output
 *.csv.gz

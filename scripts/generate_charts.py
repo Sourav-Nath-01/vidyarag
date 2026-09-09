@@ -12,7 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EVAL_DIR     = PROJECT_ROOT / "data" / "eval"
 IMG_DIR      = PROJECT_ROOT / "img"
 IMG_DIR.mkdir(exist_ok=True)
