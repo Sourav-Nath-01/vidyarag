@@ -15,11 +15,10 @@ The dataset was built using:
 ```bash
 data/
 │
-├── raw_transcripts/        # Whisper transcripts
-├── ocr_text/               # OCR extracted slide text
-├── processed_chunks/       # Final retrieval chunks
-├── metadata/               # Course metadata
-├── eval/                   # Evaluation queries and metrics
+├── raw/                    # Whisper transcripts + OCR output, per lecture
+├── processed/              # Chunked segments (segments_c1/c2/c3*.jsonl)
+├── indexes/                # FAISS + BM25 indexes (demo set is committed)
+├── eval/                   # Annotations, experiment results, metrics
 └── README.md
 ```
 
@@ -63,7 +62,7 @@ Example queries include:
 - “explain pipelining in processor execution”
 - “how does TCP three way handshake work” :contentReference[oaicite:0]{index=0}
 
-For extending annotations and evaluating new retrieval systems, the repository includes `eval_app.py` — a custom UI where human evaluators can:
+For extending annotations and evaluating new retrieval systems, the repository includes `scripts/eval_app.py` — a custom UI where human evaluators can:
 - Search queries
 - Inspect retrieved results
 - Select the most relevant lecture segment
@@ -233,4 +232,4 @@ This dataset supports research in:
 # Repository
 
 Repository:
-https://github.com/Shubhamsavani/nptel-lecture-retrieval
+https://github.com/Sourav-Nath-01/vidyarag

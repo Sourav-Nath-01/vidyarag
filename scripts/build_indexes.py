@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 
 # ── paths ─────────────────────────────────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PROCESSED    = PROJECT_ROOT / "data" / "processed"
 INDEXES      = PROJECT_ROOT / "data" / "indexes"
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "retrieval"))

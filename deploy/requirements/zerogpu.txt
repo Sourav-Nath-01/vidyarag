@@ -1,0 +1,16 @@
+# ── Runtime deps for the ZeroGPU Gradio Space (deploy/app_zerogpu.py) ────────────────
+# NOTE: do NOT pin `spaces` here — the ZeroGPU platform injects its own
+# compatible version at build time; a conflicting pin breaks the build.
+
+gradio>=5.0
+
+torch==2.1.2
+sentence-transformers==2.7.0
+faiss-cpu==1.8.0
+rank-bm25==0.2.2
+transformers==4.40.2
+huggingface-hub==0.23.2
+
+numpy==1.26.4
+python-dotenv==1.0.1
+requests==2.31.0

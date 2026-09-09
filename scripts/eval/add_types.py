@@ -121,7 +121,7 @@ TYPES = {
     "daa_008": "theoretical",   # TSP approximation
 }
 
-ann_path = Path(__file__).parent / "annotations.jsonl"
+ann_path = Path(__file__).resolve().parents[2] / "data" / "eval" / "annotations.jsonl"
 out_path = ann_path  # overwrite in place
 
 lines = ann_path.read_text(encoding="utf-8").splitlines()

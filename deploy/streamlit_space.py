@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-deploy_to_hf.py — One-command deploy to Hugging Face Spaces
-============================================================
+streamlit_space.py — One-command deploy to Hugging Face Spaces
+==============================================================
 Creates a public Streamlit Space with the demo index.
 
 Usage:
     source venv/bin/activate
-    python deploy_to_hf.py --username YOUR_HF_USERNAME
+    python deploy/streamlit_space.py --username YOUR_HF_USERNAME
 
 What it does:
     1. Logs you into HF (opens browser)
     2. Creates Space: {username}/nptel-lecture-retrieval
-    3. Uploads: app.py, src/, data/indexes/demo*, README_HF.md, requirements_hf.txt
+    3. Uploads: app.py, src/, configs/, data/indexes/demo*,
+       deploy/space_cards/streamlit.md, deploy/requirements/streamlit-space.txt
 
 The demo index (faiss_demo + bm25_demo + metadata_demo) is already built
 in data/indexes/ — no GPU needed for deployment.
@@ -22,7 +23,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
@@ -87,9 +88,8 @@ def main():
     UPLOAD_FILES = [
         # App entry point (HF uses app.py by default for Streamlit)
         (PROJECT_ROOT / "app.py",              "app.py"),
-        (PROJECT_ROOT / "requirements_hf.txt", "requirements.txt"),
-        (PROJECT_ROOT / "README_HF.md",        "README.md"),
-        (PROJECT_ROOT / ".env",                ".env"),
+        (PROJECT_ROOT / "deploy/requirements/streamlit-space.txt", "requirements.txt"),
+        (PROJECT_ROOT / "deploy/space_cards/streamlit.md",         "README.md"),
     ]
 
     UPLOAD_DIRS = [

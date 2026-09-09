@@ -7,8 +7,8 @@ from pathlib import Path
 # ─────────────────────────────────────────────
 # Import retriever + queries
 # ─────────────────────────────────────────────
-_here = Path(__file__).resolve().parent
-for _candidate in [_here, _here / "src", _here / "src/retrieval"]:
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+for _candidate in [PROJECT_ROOT / "src" / "retrieval", PROJECT_ROOT / "src", PROJECT_ROOT]:
     if (_candidate / "retriever.py").exists():
         sys.path.insert(0, str(_candidate))
         break
@@ -19,7 +19,7 @@ from evaluator import EVAL_QUERIES
 # ─────────────────────────────────────────────
 # Config
 # ─────────────────────────────────────────────
-ANNOT_FILE = Path("data/eval/annotations.jsonl")
+ANNOT_FILE = PROJECT_ROOT / "data" / "eval" / "annotations.jsonl"
 TOP_K = 5
 
 # ─────────────────────────────────────────────

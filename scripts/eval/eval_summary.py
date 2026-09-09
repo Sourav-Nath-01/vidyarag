@@ -1,6 +1,10 @@
 import json
 import os
 import csv
+from pathlib import Path
+
+# Resolved against the repo so these run from any working directory
+EVAL_DIR = Path(__file__).resolve().parents[2] / "data" / "eval"
 
 # ===================== CONFIG =====================
 FILE_PREFIX = "results_E"
@@ -8,7 +12,7 @@ FILE_SUFFIX = ".json"
 START_INDEX = 1
 END_INDEX = 9
 
-OUTPUT_CSV = "strategy_summary.csv"
+OUTPUT_CSV = EVAL_DIR / "strategy_summary.csv"
 
 # Custom strategy labels
 STRATEGY_MAP = {
@@ -40,7 +44,7 @@ def process_files():
     processed_data = []
 
     for i in range(START_INDEX, END_INDEX + 1):
-        filename = f"{FILE_PREFIX}{i}{FILE_SUFFIX}"
+        filename = EVAL_DIR / f"{FILE_PREFIX}{i}{FILE_SUFFIX}"
 
         if not os.path.exists(filename):
             print(f"Warning: {filename} not found, skipping.")
