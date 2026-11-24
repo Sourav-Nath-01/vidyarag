@@ -22,7 +22,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-LOCATION="${LOCATION:-centralindia}"
+# UAE North: the closest region to India that both allows Container Apps and is
+# permitted by this Azure for Students subscription's region policy.
+LOCATION="${LOCATION:-uaenorth}"
 RG="${RG:-rg-vidyarag}"
 ENV_NAME="${ENV_NAME:-cae-vidyarag}"
 APP="${APP:-vidyarag-api}"
