@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VidyaRAG — Lecture Search</title>
+  <meta name="description" content="Semantic search over NPTEL computer-science lectures. Ask a question and jump to the exact moment in the lecture video that answers it.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#q">Skip to search</a>
+
+  <header class="wrap hero">
+    <div class="brand"><span class="logo" aria-hidden="true">V</span><span>VidyaRAG</span></div>
+    <h1>Ask a question. Jump to the moment in the lecture that answers it.</h1>
+    <p class="lede">Semantic search across 16,200 slide-aligned segments from 9 NPTEL computer-science courses — transcripts and slide text together.</p>
+    <ul class="stats" aria-label="Evaluation results">
+      <li><strong>0.826</strong> MRR</li>
+      <li><strong>0.964</strong> Recall@10</li>
+      <li><strong>84</strong> human-annotated test queries</li>
+      <li><strong>9</strong> courses</li>
+    </ul>
+  </header>
+
+  <main class="wrap">
+    <form id="search-form" class="search" role="search" action="/" method="get">
+      <label for="q" class="sr-only">Search the lectures</label>
+      <div class="searchbox">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="q" name="q" type="search" placeholder="e.g. how does binary search tree insertion work"
+               minlength="2" maxlength="512" autocomplete="off" spellcheck="false" required>
+        <kbd class="hint" aria-hidden="true" title="Press / to search">/</kbd>
+        <button id="search-btn" class="btn" type="submit">Search</button>
+      </div>
+
+      <div class="examples">
+        <span class="examples-label">Try</span>
+        <button type="button" class="example">what is backpropagation</button>
+        <button type="button" class="example">necessary conditions for deadlock</button>
+        <button type="button" class="example">TCP three-way handshake</button>
+        <button type="button" class="example">third normal form in databases</button>
+        <button type="button" class="example">worst case of quicksort</button>
+      </div>
+
+      <details class="options">
+        <summary>Pipeline options</summary>
+        <div class="options-grid">
+          <label>Results
+            <select id="topk">
+              <option>3</option>
+              <option selected>5</option>
+              <option>10</option>
+            </select>
+          </label>
+          <label class="toggle"><input type="checkbox" id="opt-bm25" checked> BM25 hybrid retrieval</label>
+          <label class="toggle"><input type="checkbox" id="opt-rerank" checked> Cross-encoder reranking</label>
+        </div>
+        <p class="hint-text">Switch a stage off to see how much it contributes to the ranking.</p>
+      </details>
+    </form>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <section id="intro" class="intro" aria-labelledby="how">
+      <h2 id="how">How it works</h2>
+      <ol class="pipeline">
+        <li><strong>Your question</strong><span>plain English</span></li>
+        <li><strong>Dense + sparse</strong><span>BGE-large vectors (FAISS) and BM25 keywords</span></li>
+        <li><strong>Fusion</strong><span>Reciprocal Rank Fusion</span></li>
+        <li><strong>Rerank</strong><span>MiniLM cross-encoder</span></li>
+        <li><strong>The moment</strong><span>best segment per lecture, with timestamp</span></li>
+      </ol>
+      <p>Lectures were transcribed with Whisper and slides read with Tesseract OCR. Segments follow slide changes detected from OCR similarity, and the full system reaches MRR 0.826 against 0.448 for a transcript-only, fixed-window baseline.</p>
+    </section>
+
+    <section id="results" class="results" aria-label="Search results"></section>
+  </main>
+
+  <footer class="wrap footer">
+    <p>Served from <strong>Azure Container Apps</strong> — 2 vCPU, scales to zero when idle, so the first search after a quiet spell can take a few seconds. Build <code id="build">…</code></p>
+    <p><a href="/docs">REST API docs</a> · <a href="https://github.com/Sourav-Nath-01/vidyarag">Source on GitHub</a> · <a href="https://github.com/Sourav-Nath-01/vidyarag/blob/main/report/vidyarag_report.pdf">Technical report</a></p>
+  </footer>
+</body>
+</html>

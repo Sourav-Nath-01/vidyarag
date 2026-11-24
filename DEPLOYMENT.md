@@ -1,13 +1,15 @@
 # Deployment
 
-VidyaRAG's search API runs as a Docker container on **Azure Container Apps**. A
-GitHub Actions pipeline tests, builds, ships and verifies every change on `main`.
-The Streamlit UI is also hosted separately as a public demo on Hugging Face Spaces.
+VidyaRAG's search web app and REST API run as one Docker container on **Azure
+Container Apps**. A GitHub Actions pipeline tests, builds, ships and verifies
+every change on `main`. The original Streamlit UI is also hosted separately on
+Hugging Face Spaces.
 
 | Surface | Where | What it serves |
 |---|---|---|
-| REST API (production) | [Azure Container Apps (UAE North)](https://vidyarag-api.yellowwave-9a72b46f.uaenorth.azurecontainerapps.io/docs) | FastAPI `/search` with BGE-large + C3 index, docs at `/docs` |
-| Interactive demo | [Hugging Face Space](https://huggingface.co/spaces/SouravNath/vidyarag) | Streamlit UI |
+| Search web app (production) | [Azure Container Apps (UAE North)](https://vidyarag-api.yellowwave-9a72b46f.uaenorth.azurecontainerapps.io/) | `/`: search page with inline video playback at the matching timestamp |
+| REST API (production) | [same container](https://vidyarag-api.yellowwave-9a72b46f.uaenorth.azurecontainerapps.io/docs) | FastAPI `/search` with BGE-large + C3 index, OpenAPI docs at `/docs` |
+| Streamlit demo | [Hugging Face Space](https://huggingface.co/spaces/SouravNath/vidyarag) | Streamlit UI |
 | Container image | `ghcr.io/sourav-nath-01/vidyarag-api` | Immutable image, one tag per commit |
 
 ---
@@ -106,9 +108,20 @@ polls `/ready` until it reports the commit SHA just deployed, then runs a real
 search. A green deploy means the new code is live and answering, not just that
 the old revision is still up.
 
+**The web app ships in the same container as the API.** The search page
+(`api/static/`) is plain HTML, CSS and JavaScript with no build step, served by
+FastAPI at `/`. It calls `POST /search` on the same origin, so there's no CORS
+setup, no second service to deploy or pay for, and the page and the API always
+deploy together at the same version. Searches are shareable as URLs
+(`/?q=backpropagation`), and results play inline from the matching timestamp
+through YouTube's privacy-enhanced embed.
+
 **Security basics.** The container runs as non-root uid 1000. There are no
 secrets in the image, and the Dockerfile `HEALTHCHECK` works under plain
-`docker run` too.
+`docker run` too. The search page is served with a strict Content Security
+Policy: only its own script and stylesheet, no inline scripts, YouTube
+thumbnails and embeds as the only third-party content, and no framing by
+other sites. All result text is inserted as text nodes, never as HTML.
 
 ---
 

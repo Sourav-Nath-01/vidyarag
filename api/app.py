@@ -5,7 +5,8 @@ Provides a production-ready HTTP endpoint wrapping the retrieval pipeline.
 
 Endpoints
 ---------
-  GET  /            → service info (version, models, deployed strategies)
+  GET  /            → search web page (api/static/index.html)
+  GET  /info        → service info (version, models, deployed strategies)
   GET  /health      → liveness probe  (process is up)
   GET  /ready       → readiness probe (models + default index loaded)
   POST /search      → run the full retrieval pipeline
@@ -82,7 +83,8 @@ log = logging.getLogger("vidyarag.api")
 try:
     from fastapi import FastAPI, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import JSONResponse
+    from fastapi.responses import FileResponse, JSONResponse
+    from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel, Field
 except ImportError as e:
     raise ImportError(
@@ -235,20 +237,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_STATIC_DIR = _here / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
 _QUIET_PATHS = {"/health", "/ready"}   # probe traffic — keep it out of the logs
 
 
 @app.middleware("http")
 async def access_log(request: Request, call_next):
-    """One structured log line per request + an X-Response-Time-ms header."""
+    """One structured log line per request, timing + baseline security headers."""
     t0 = time.perf_counter()
     response = await call_next(request)
     ms = (time.perf_counter() - t0) * 1000
+    path = request.url.path
     response.headers["X-Response-Time-ms"] = f"{ms:.1f}"
-    if request.url.path not in _QUIET_PATHS:
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if path.startswith("/static/"):
+        # Revalidate on every load (cheap 304 via ETag) so a deploy shows up at once.
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+    if path not in _QUIET_PATHS:
         log.info(json.dumps({
             "method": request.method,
-            "path": request.url.path,
+            "path": path,
             "status": response.status_code,
             "ms": round(ms, 1),
         }))
@@ -344,7 +356,27 @@ class InfoResponse(BaseModel):
 # Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.get("/", response_model=InfoResponse, tags=["Health"])
+# Strict CSP for the search page: only our own script/CSS, YouTube thumbnails
+# and the privacy-enhanced YouTube embed; no inline scripts, no framing.
+_UI_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "img-src 'self' https://i.ytimg.com; "
+        "frame-src https://www.youtube-nocookie.com; "
+        "script-src 'self'; style-src 'self'; connect-src 'self'; "
+        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    ),
+    "Cache-Control": "no-cache",
+}
+
+
+@app.get("/", include_in_schema=False)
+def search_page():
+    """The search web page (static HTML/CSS/JS that calls POST /search)."""
+    return FileResponse(_STATIC_DIR / "index.html", headers=_UI_HEADERS)
+
+
+@app.get("/info", response_model=InfoResponse, tags=["Health"])
 def info():
     """Service info: build version, models and which strategies this instance serves."""
     return InfoResponse(

@@ -111,11 +111,42 @@ def test_ready_returns_503_when_warmup_failed(client, api, monkeypatch):
 
 
 def test_info_reports_version_and_deployed_strategies(client):
-    body = client.get("/").json()
+    body = client.get("/info").json()
     assert body["version"] == "test-sha"
     assert body["ready"] is True
     assert body["default_strategy"] == "c3"
     assert body["available_strategies"] == ["c3"]
+
+
+# ── web page ───────────────────────────────────────────────────────────────────
+
+def test_search_page_is_served_with_strict_csp(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/html")
+    assert "VidyaRAG" in r.text and 'id="search-form"' in r.text
+    csp = r.headers["content-security-policy"]
+    assert "script-src 'self'" in csp and "unsafe-inline" not in csp
+    assert "frame-ancestors 'none'" in csp
+    assert r.headers["x-content-type-options"] == "nosniff"
+
+
+@pytest.mark.parametrize("asset, mime", [
+    ("app.js", "javascript"), ("app.css", "text/css"), ("favicon.svg", "image/svg+xml"),
+])
+def test_static_assets_are_served(client, asset, mime):
+    r = client.get(f"/static/{asset}")
+    assert r.status_code == 200
+    assert mime in r.headers["content-type"]
+    assert r.headers["cache-control"] == "no-cache"
+
+
+def test_page_only_references_assets_that_exist(client):
+    # Catches a renamed/missing file before it ships as a broken page.
+    import re
+    html = client.get("/").text
+    for path in re.findall(r'(?:src|href)="(/static/[^"]+)"', html):
+        assert client.get(path).status_code == 200, path
 
 
 # ── search ─────────────────────────────────────────────────────────────────────

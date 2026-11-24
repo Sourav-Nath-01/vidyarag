@@ -66,9 +66,15 @@ def main() -> int:
             return 1
         time.sleep(5)
 
-    # 2) Service info
-    status, info, _ = call("GET", f"{base}/")
-    print(f"✓ GET / → {status}  version={info.get('version')}  strategies={info.get('available_strategies')}")
+    # 2) Service info + the search web page
+    status, info, _ = call("GET", f"{base}/info")
+    print(f"✓ GET /info → {status}  version={info.get('version')}  strategies={info.get('available_strategies')}")
+    with urllib.request.urlopen(f"{base}/", timeout=60) as resp:
+        page = resp.read().decode("utf-8", "replace")
+        if resp.status != 200 or "VidyaRAG" not in page:
+            print(f"✗ search page not served correctly (HTTP {resp.status})")
+            return 1
+    print("✓ GET / → search page (HTML) served")
 
     # 3) Real search through the whole pipeline
     status, res, headers = call("POST", f"{base}/search", {"query": args.query, "top_k": 3})
