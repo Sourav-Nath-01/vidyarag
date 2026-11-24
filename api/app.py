@@ -84,7 +84,6 @@ try:
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import JSONResponse
     from pydantic import BaseModel, Field
-    import uvicorn
 except ImportError as e:
     raise ImportError(
         f"FastAPI not installed: {e}\n"
@@ -473,6 +472,8 @@ def search(request: SearchRequest):
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    import uvicorn  # only needed to self-host; importing the app doesn't require it
+
     uvicorn.run(
         "api.app:app",
         host="0.0.0.0",

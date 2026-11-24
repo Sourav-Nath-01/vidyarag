@@ -72,12 +72,13 @@ def api():
     mp.syspath_prepend(str(_ROOT))
     mp.setitem(sys.modules, "retriever", _make_fake_retriever(index_dir))
     sys.modules.pop("api.app", None)
-
-    module = importlib.import_module("api.app")
-    yield module
-
-    sys.modules.pop("api.app", None)
-    mp.undo()
+    try:
+        yield importlib.import_module("api.app")
+    finally:
+        # Always restore the real `retriever` — even if the import above
+        # failed — so other test modules never see the fake.
+        sys.modules.pop("api.app", None)
+        mp.undo()
 
 
 @pytest.fixture(scope="module")
