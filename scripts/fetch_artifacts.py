@@ -19,16 +19,18 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import sys
 import time
 from pathlib import Path
 
 
 def _mb(path: Path) -> float:
+    # Skip symlinks: the HF cache stores each file once under blobs/ and links
+    # to it from snapshots/, so following links would count it twice.
     if path.is_file():
         return path.stat().st_size / 1e6
-    return sum(p.stat().st_size for p in path.rglob("*") if p.is_file()) / 1e6
+    return sum(p.stat().st_size for p in path.rglob("*")
+               if p.is_file() and not p.is_symlink()) / 1e6
 
 
 def main() -> int:
@@ -75,14 +77,7 @@ def main() -> int:
             load()
             print(f"[fetch] model {label} ready ({time.time() - t0:.0f}s)", flush=True)
 
-    # hf-xet keeps a chunk cache of everything it downloaded (a second copy of
-    # each file). The runtime is offline and reads the materialised files, so
-    # drop it — otherwise it roughly doubles the size of the image layer.
     hf_home = Path(os.getenv("HF_HOME", Path.home() / ".cache" / "huggingface"))
-    xet_cache = Path(os.getenv("HF_XET_CACHE", hf_home / "xet"))
-    if xet_cache.exists():
-        print(f"[fetch] removing hf-xet chunk cache {xet_cache} ({_mb(xet_cache):.0f} MB)", flush=True)
-        shutil.rmtree(xet_cache, ignore_errors=True)
     if hf_home.exists():
         print(f"[fetch] model cache {hf_home}: {_mb(hf_home):.0f} MB", flush=True)
         for child in sorted(p for p in hf_home.rglob("*") if p.is_dir() and p.parent.name == "hub"):
