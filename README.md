@@ -6,9 +6,12 @@
 [![HF Space](https://img.shields.io/badge/%F0%9F%A4%97%20HF%20Space-SouravNath%2Fvidyarag-ffd21e)](https://huggingface.co/spaces/SouravNath/vidyarag)
 [![Tests](https://github.com/Sourav-Nath-01/vidyarag/actions/workflows/tests.yml/badge.svg)](https://github.com/Sourav-Nath-01/vidyarag/actions/workflows/tests.yml)
 [![Build & Deploy](https://github.com/Sourav-Nath-01/vidyarag/actions/workflows/build-and-deploy.yml/badge.svg)](https://github.com/Sourav-Nath-01/vidyarag/actions/workflows/build-and-deploy.yml)
+[![API on Azure](https://img.shields.io/badge/API-Azure%20Container%20Apps-0078D4?logo=microsoftazure)](https://vidyarag-api.yellowwave-9a72b46f.uaenorth.azurecontainerapps.io/docs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**[🚀 Try the live demo](https://huggingface.co/spaces/SouravNath/vidyarag)** · **[📄 Read the full report](report/vidyarag_report.pdf)**
+**[🚀 Try the live demo](https://huggingface.co/spaces/SouravNath/vidyarag)** · **[⚡ Live REST API (Azure)](https://vidyarag-api.yellowwave-9a72b46f.uaenorth.azurecontainerapps.io/docs)** · **[📄 Read the full report](report/vidyarag_report.pdf)**
+
+> The API scales to zero when idle, so the first request after a quiet period can take a minute or two while the container starts.
 
 An AI-powered semantic search system over NPTEL lecture transcripts and OCR slide content. Achieves **MRR 0.826 / Recall@10 0.964** across 9 CS courses and 24,000+ indexed segments.
 

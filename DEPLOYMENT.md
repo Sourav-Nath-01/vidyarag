@@ -6,7 +6,7 @@ The Streamlit UI is also hosted separately as a public demo on Hugging Face Spac
 
 | Surface | Where | What it serves |
 |---|---|---|
-| REST API (production) | Azure Container Apps | FastAPI `/search` with BGE-large + C3 index, docs at `/docs` |
+| REST API (production) | [Azure Container Apps (UAE North)](https://vidyarag-api.yellowwave-9a72b46f.uaenorth.azurecontainerapps.io/docs) | FastAPI `/search` with BGE-large + C3 index, docs at `/docs` |
 | Interactive demo | [Hugging Face Space](https://huggingface.co/spaces/SouravNath/vidyarag) | Streamlit UI |
 | Container image | `ghcr.io/sourav-nath-01/vidyarag-api` | Immutable image, one tag per commit |
 
@@ -45,12 +45,16 @@ nothing is pushed or deployed.
 
 ## Design decisions
 
-**Container Apps, not a VM or App Service.** The service needs about 3 GB of RAM
-(BGE-large is 1.3 GB on its own), which rules out small App Service plans.
-Container Apps runs any container image, gives an HTTPS endpoint, and can
-**scale to zero**, so an idle demo costs almost nothing. The trade-off is a
-cold start of about 1–2 minutes on the first request after idling: the image
-pull plus loading the model into memory.
+**Container Apps, not a VM or App Service.** A VM or an App Service plan bills
+24/7 even when nobody is using the API. Container Apps runs any container
+image, gives an HTTPS endpoint, revisions and health probes out of the box,
+and can **scale to zero**, so an idle demo costs almost nothing. The trade-off
+is a cold start on the first request after idling: pulling the ~1.4 GB image,
+then about 5 s of model loading.
+
+**Measured performance** (CI smoke test under the production limits of 2 vCPU
+and 4 GiB): ready about 5 s after the container starts, about 1.9 s per
+search, about 0.9 GB of memory in use after a search.
 
 **Artifacts are baked into the image at build time.** `scripts/fetch_artifacts.py`
 downloads the embedding model, the reranker and the C3 indexes during
@@ -59,12 +63,12 @@ out. Each image tag therefore pins an exact model and index set, cold starts
 don't depend on a third-party download, and CI proves this by running the
 smoke test with `--network none`.
 
-**Memory budget → only the C3 strategy in production.** C3 is the best
-configuration (MRR 0.826). Loading C1, C2 and C3 together would put peak memory
-close to the 4 GiB limit. CI runs the container with `--memory 4g` and prints
-actual usage after a search, so a regression fails the build instead of
-production. To serve all three strategies, build with
-`--build-arg INDEX_STRATEGIES=c1,c2,c3`.
+**Only the C3 strategy in production.** C3 is the best configuration (MRR
+0.826). The other strategies exist for the ablation study, and shipping only
+C3 keeps the image and cold start smaller. CI runs the container with
+`--memory 4g` and prints actual usage after a search, so a memory regression
+fails the build instead of production. To serve all three strategies, build
+with `--build-arg INDEX_STRATEGIES=c1,c2,c3`.
 
 **Smaller image.** The CPU-only PyTorch wheel avoids about 3 GB of CUDA
 libraries. Layers are ordered from least to most frequently changed (OS deps,
