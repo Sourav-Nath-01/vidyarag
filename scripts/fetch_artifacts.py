@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -74,9 +75,18 @@ def main() -> int:
             load()
             print(f"[fetch] model {label} ready ({time.time() - t0:.0f}s)", flush=True)
 
-        hf_home = Path(os.getenv("HF_HOME", Path.home() / ".cache" / "huggingface"))
-        if hf_home.exists():
-            print(f"[fetch] model cache {hf_home}: {_mb(hf_home):.0f} MB", flush=True)
+    # hf-xet keeps a chunk cache of everything it downloaded (a second copy of
+    # each file). The runtime is offline and reads the materialised files, so
+    # drop it — otherwise it roughly doubles the size of the image layer.
+    hf_home = Path(os.getenv("HF_HOME", Path.home() / ".cache" / "huggingface"))
+    xet_cache = Path(os.getenv("HF_XET_CACHE", hf_home / "xet"))
+    if xet_cache.exists():
+        print(f"[fetch] removing hf-xet chunk cache {xet_cache} ({_mb(xet_cache):.0f} MB)", flush=True)
+        shutil.rmtree(xet_cache, ignore_errors=True)
+    if hf_home.exists():
+        print(f"[fetch] model cache {hf_home}: {_mb(hf_home):.0f} MB", flush=True)
+        for child in sorted(p for p in hf_home.rglob("*") if p.is_dir() and p.parent.name == "hub"):
+            print(f"         {child.name}: {_mb(child):.0f} MB", flush=True)
 
     print(f"[fetch] index dir total: {_mb(index_dir):.0f} MB", flush=True)
     return 0
