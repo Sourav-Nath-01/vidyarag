@@ -5,6 +5,7 @@
 [![GitHub](https://img.shields.io/badge/GitHub-Sourav--Nath--01%2Fvidyarag-181717?logo=github)](https://github.com/Sourav-Nath-01/vidyarag)
 [![HF Space](https://img.shields.io/badge/%F0%9F%A4%97%20HF%20Space-SouravNath%2Fvidyarag-ffd21e)](https://huggingface.co/spaces/SouravNath/vidyarag)
 [![Tests](https://github.com/Sourav-Nath-01/vidyarag/actions/workflows/tests.yml/badge.svg)](https://github.com/Sourav-Nath-01/vidyarag/actions/workflows/tests.yml)
+[![Build & Deploy](https://github.com/Sourav-Nath-01/vidyarag/actions/workflows/build-and-deploy.yml/badge.svg)](https://github.com/Sourav-Nath-01/vidyarag/actions/workflows/build-and-deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **[🚀 Try the live demo](https://huggingface.co/spaces/SouravNath/vidyarag)** · **[📄 Read the full report](report/vidyarag_report.pdf)**
@@ -75,6 +76,7 @@ Evaluated on **84 human-annotated queries** across 9 NPTEL courses (DSA, DAA, De
 vidyarag/
 │
 ├── app.py                      # Streamlit UI — main entry point
+├── DEPLOYMENT.md               # Production deployment write-up (Azure + CI/CD)
 ├── requirements.txt            # Full dev / pipeline dependency set
 ├── env.example                 # Copy to .env and edit
 ├── pytest.ini
@@ -102,17 +104,20 @@ vidyarag/
 │   ├── generate_charts.py      # README result charts
 │   ├── kaggle_build_indexes.ipynb
 │   ├── kaggle_upload_to_hf.py  # Push built indexes to an HF Dataset
+│   ├── fetch_artifacts.py      # Download models + indexes at image build time
 │   └── eval/                   # Metric summarisation helpers
 │       ├── eval_summary.py
 │       ├── sensitivity_summary.py
 │       └── add_types.py
 │
-├── deploy/                     # Hugging Face Space deployment
+├── deploy/                     # Deployment (Azure + Hugging Face)
+│   ├── Dockerfile              # Production image for the FastAPI service
+│   ├── smoke_test.py           # End-to-end check used by CI and after deploys
+│   ├── azure/setup.sh          # One-time Azure Container Apps provisioning
 │   ├── streamlit_space.py      # Deploy the Streamlit demo Space
 │   ├── api_space.py            # Deploy the Docker FastAPI Space
 │   ├── zerogpu_space.py        # Deploy the Gradio ZeroGPU Space
 │   ├── app_zerogpu.py          # Gradio entry point for ZeroGPU
-│   ├── Dockerfile              # Image for the FastAPI Space
 │   ├── requirements/           # Per-target runtime deps
 │   │   ├── streamlit-space.txt
 │   │   ├── api.txt
@@ -135,7 +140,10 @@ vidyarag/
 │
 ├── configs/courses.json        # Course list / OCR flags
 ├── img/                        # README diagrams and charts
-└── tests/test_core.py          # Unit test suite (pytest)
+├── .github/workflows/          # CI (tests.yml) + CI/CD (build-and-deploy.yml)
+└── tests/
+    ├── test_core.py            # Retrieval unit tests (pytest)
+    └── test_api.py             # API tests: probes, validation, back-pressure
 ```
 
 ---
@@ -342,28 +350,28 @@ pytest tests/ -v
 
 ## Deployment
 
-Three Hugging Face Space targets, each self-contained under `deploy/`:
+The REST API runs as a Docker container on **Azure Container Apps**. A GitHub
+Actions CI/CD pipeline tests, builds, smoke-tests, ships and verifies every
+change. Full write-up: **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
-| Target | Script | SDK | Serves |
-|---|---|---|---|
-| Streamlit demo | `deploy/streamlit_space.py` | Streamlit | Always-on CPU demo (demo index) |
-| REST API | `deploy/api_space.py` | Docker | FastAPI `/search`, full BGE-large index |
-| ZeroGPU API | `deploy/zerogpu_space.py` | Gradio | On-demand A10G GPU inference |
-
-```bash
-export HF_TOKEN=hf_...            # write-access token
-python deploy/streamlit_space.py --username YOUR_HF_USERNAME
+```
+PR / push → unit tests → docker build → smoke test (offline, 2 CPU / 4 GB)
+          → push to GHCR → deploy to Azure (OIDC, no secrets) → verify the new revision
 ```
 
-Each target pairs a runtime dependency file in `deploy/requirements/` with an HF
-Space card in `deploy/space_cards/` (uploaded as the Space's own `README.md`).
-
-Build the API image locally:
+- **Image**: CPU-only PyTorch, models and C3 index baked in at build time, non-root, `HEALTHCHECK`
+- **Runtime**: 2 vCPU / 4 GiB, scale-to-zero, HTTPS, startup/readiness/liveness probes on `/health` and `/ready`
+- **API hardening**: warm-up before accepting traffic, concurrency limit with `503 + Retry-After`, structured access logs
 
 ```bash
-docker build -f deploy/Dockerfile -t nptel-retrieval-api .
-docker run -p 8000:7860 nptel-retrieval-api
+docker build -f deploy/Dockerfile -t vidyarag-api .
+docker run --rm -p 8000:7860 --memory 4g vidyarag-api
+python deploy/smoke_test.py http://localhost:8000
 ```
+
+The interactive Streamlit demo is hosted on [Hugging Face Spaces](https://huggingface.co/spaces/SouravNath/vidyarag)
+(`deploy/streamlit_space.py`). `deploy/` also holds HF Docker and ZeroGPU
+targets (`api_space.py`, `zerogpu_space.py`).
 
 ---
 

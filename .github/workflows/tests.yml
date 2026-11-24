@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:        # reused as the first stage of build-and-deploy.yml
+
+permissions:
+  contents: read
 
 jobs:
   pytest:
@@ -16,8 +20,10 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Light deps only: the API tests swap the retriever for an in-memory
+      # fake, so no torch / models / indexes are needed here.
       - name: Install test dependencies
-        run: pip install pytest python-dotenv
+        run: pip install pytest python-dotenv fastapi httpx
 
       - name: Run unit tests
         run: pytest tests/ -v

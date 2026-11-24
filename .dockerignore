@@ -1,0 +1,13 @@
+# Build-context ALLOWLIST: exclude everything, then re-include only what
+# deploy/Dockerfile copies. Without this, `docker build .` would upload the
+# multi-GB venv/ and data/ directories to the Docker daemon on every build.
+*
+!api/
+!api/**
+!src/retrieval/
+!src/retrieval/**
+!scripts/fetch_artifacts.py
+!deploy/requirements/api.txt
+
+**/__pycache__
+**/*.pyc

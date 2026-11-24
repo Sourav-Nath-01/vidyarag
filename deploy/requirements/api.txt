@@ -1,17 +1,22 @@
-# ── Runtime deps for the FastAPI REST API only ─────────────────────────────────
-# (excludes offline pipeline deps like Whisper/yt-dlp/OpenCV/Jupyter —
-#  see requirements.txt for the full data-collection + training stack)
+# ── Runtime deps for the FastAPI REST API container (deploy/Dockerfile) ───────
+# Pinned to the exact versions used in local development, so dev == prod.
+# Excludes offline-pipeline deps (Whisper/yt-dlp/OpenCV/Jupyter) — see the
+# root requirements.txt for the full data-collection stack.
+#
+# torch is installed by the Dockerfile from the CPU-only wheel index first
+# (the default PyPI wheel drags in ~3 GB of CUDA libraries we never use);
+# the pin below then just confirms the version.
 
-torch==2.1.2
-sentence-transformers==2.7.0
-faiss-cpu==1.8.0
+torch==2.12.0
+sentence-transformers==5.5.1
+transformers==5.10.1
+huggingface-hub==1.17.0
+faiss-cpu==1.14.2
 rank-bm25==0.2.2
-transformers==4.40.2
-huggingface-hub==0.23.2
+numpy==2.4.6
 
-numpy==1.26.4
-python-dotenv==1.0.1
-requests==2.31.0
-
-fastapi==0.111.0
-uvicorn[standard]==0.29.0
+fastapi==0.136.3
+uvicorn[standard]==0.49.0
+pydantic==2.13.4
+python-dotenv==1.2.2
+requests==2.34.2

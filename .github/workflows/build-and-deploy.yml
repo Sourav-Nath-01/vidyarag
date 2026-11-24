@@ -1,0 +1,168 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CI/CD for the VidyaRAG API
+#
+#   pull request  →  tests → build image → smoke-test the container
+#   push to main  →  … same … → push image to GHCR → deploy to Azure Container
+#                    Apps → verify the NEW revision is live and answering
+#
+# Azure auth is keyless: GitHub's OIDC token is exchanged for an Azure token
+# via a managed identity's federated credential (see deploy/azure/setup.sh),
+# so no Azure password or secret key is stored in GitHub.
+# ─────────────────────────────────────────────────────────────────────────────
+name: build-and-deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "src/retrieval/**"
+      - "scripts/fetch_artifacts.py"
+      - "deploy/Dockerfile"
+      - "deploy/requirements/api.txt"
+      - "deploy/smoke_test.py"
+      - ".dockerignore"
+      - ".github/workflows/build-and-deploy.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "src/retrieval/**"
+      - "scripts/fetch_artifacts.py"
+      - "deploy/Dockerfile"
+      - "deploy/requirements/api.txt"
+      - "deploy/smoke_test.py"
+      - ".dockerignore"
+      - ".github/workflows/build-and-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-and-deploy-${{ github.ref }}
+  # superseded PR builds are cancelled; a deploy in progress is never cut short
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE_NAME: vidyarag-api
+
+jobs:
+  test:
+    name: Unit tests
+    uses: ./.github/workflows/tests.yml
+
+  build:
+    name: Build image + container smoke test
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk space (the image is ~3 GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Image name (GHCR requires lowercase)
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          load: true
+          tags: ${{ steps.name.outputs.image }}:${{ github.sha }}
+          build-args: GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Same limits as production (2 vCPU / 4 GiB) and NO network: proves the
+      # image is self-contained and fits in memory before it ever reaches Azure.
+      - name: Smoke test — offline, 2 CPU / 4 GB
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}:${{ github.sha }}
+        run: |
+          docker image ls "$IMAGE"
+          docker run -d --name api --network none --cpus 2 --memory 4g --memory-swap 4g "$IMAGE"
+          if ! docker exec -i api python - http://127.0.0.1:7860 --timeout 300 < deploy/smoke_test.py; then
+            echo "::error::Container smoke test failed"
+            docker logs api 2>&1 | tail -60
+            docker inspect -f 'OOMKilled={{.State.OOMKilled}} ExitCode={{.State.ExitCode}}' api || true
+            exit 1
+          fi
+          docker stats --no-stream --format 'Memory after search: {{.MemUsage}} ({{.MemPerc}})' api
+          docker logs api 2>&1 | grep -E 'warm-up finished' || true
+          docker rm -f api
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image (:<sha> and :latest)
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+        run: |
+          docker push "$IMAGE:$GITHUB_SHA"
+          docker tag "$IMAGE:$GITHUB_SHA" "$IMAGE:latest"
+          docker push "$IMAGE:latest"
+
+  deploy:
+    name: Deploy to Azure Container Apps
+    needs: build
+    # Turned on by setting the repo variable AZURE_DEPLOY_ENABLED=true once
+    # deploy/azure/setup.sh has created the Azure resources.
+    if: github.event_name != 'pull_request' && vars.AZURE_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write          # lets the job request a GitHub OIDC token
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-vidyarag' }}
+      CONTAINER_APP: ${{ vars.AZURE_CONTAINERAPP_NAME || 'vidyarag-api' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC, no stored secrets)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Roll out new revision
+        id: deploy
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}:${{ github.sha }}
+        run: |
+          az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors
+          az containerapp update \
+            --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
+            --image "$IMAGE" --output none
+          fqdn=$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
+                   --query properties.configuration.ingress.fqdn -o tsv)
+          echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"
+
+      # Waits (through a scale-from-zero cold start) until the revision built
+      # from THIS commit is serving, then runs a real search against it.
+      - name: Verify live deployment
+        run: |
+          python3 deploy/smoke_test.py "${{ steps.deploy.outputs.url }}" \
+            --expect-version "$GITHUB_SHA" --timeout 900
